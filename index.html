@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Озвучка текста</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: Georgia, 'Times New Roman', serif;
+    background: #f4f1ea;
+    color: #2b2b2b;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 24px 16px 60px;
+    line-height: 1.6;
+  }
+  h1 {
+    font-size: 20px;
+    font-family: -apple-system, sans-serif;
+    color: #555;
+    margin-bottom: 4px;
+  }
+  .sub {
+    font-family: -apple-system, sans-serif;
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 24px;
+  }
+  .controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    font-family: -apple-system, sans-serif;
+  }
+  .controls select, .controls button {
+    font-size: 13px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    background: white;
+    cursor: pointer;
+  }
+  p { margin: 0 0 18px; }
+  .sentence {
+    cursor: pointer;
+    padding: 2px 3px;
+    border-radius: 4px;
+    transition: background 0.15s;
+  }
+  .sentence:hover {
+    background: #e6dfce;
+  }
+  .sentence.playing {
+    background: #d8c9a3;
+  }
+  .btn {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    line-height: 18px;
+    text-align: center;
+    font-size: 11px;
+    border-radius: 50%;
+    background: #8a6d3b;
+    color: white;
+    margin-right: 6px;
+    cursor: pointer;
+    vertical-align: middle;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  .btn:hover { background: #6f5730; }
+  .row {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 6px;
+  }
+  .row .text { flex: 1; }
+</style>
+</head>
+<body>
+
+<h1>Текст с озвучкой по предложениям</h1>
+<div class="sub">Нажмите на кружок ▶ рядом с предложением, чтобы его озвучить. Голос — английский (текст на английском).</div>
+
+<div class="controls">
+  <label style="align-self:center;">Голос:
+    <select id="voiceSelect"></select>
+  </label>
+  <button id="stopBtn">⏹ Стоп</button>
+</div>
+
+<div id="content"></div>
+
+<script>
+const paragraphs = [
+"Let me introduce myself. My name is Marina. My surname is Sokolovskaya. I am 18 years old. I was born in Kolomna on August 9, 2008. I live in Moscow now.",
+"I am from a complete family. There are three people in my family: my mother, my father, and me. My mum has her own business, and my dad works as a chief electrician. I don't have any brothers or sisters.",
+"I'm a first-year student at the Institute of the Information Technologies and Computer Science of the Moscow Power Engineering Institute. My specialty is software development. I chose this specialty because I wanted to get an education in IT. After my studies, I want to become a valuable employee in a famous company.",
+"So, as you might guess, I'm a very busy person. I have a lot to learn and to do. We study English, mathematical analysis, analytical geometry, Russian history, the basics of Russian statehood and physics. My favorite subject is programming. I'm good at mathematical analysis and programming. Physics is more difficult for me.",
+"Our classes begin at 9:20 and they are over at 5:10 p.m. I get to the university by train. At the moment I live with my parents.",
+"I don't have much free time, but when I do, I love building apps and websites. I am photographer so I sometimes take pictures. Recently my friends and I went to a Basta concert at Luzhniki.",
+"If I want to relax at home, I listen to music. I often spend time with my family. When I come home, I usually feed my cat, have something to eat and do my homework. At home I like to relax and sleep. I think I am a kind, brave and optimistic person.",
+"East or west, home is best, isn't it?"
+];
+
+// Split a paragraph into sentences, keeping abbreviations like "9:20" and "a.m./p.m." intact.
+function splitSentences(text) {
+  const regex = /[^.!?]+(?:[.!?]+(?=\s|$)|$)/g;
+  let matches = text.match(regex) || [text];
+  // Merge cases where split happened after "p.m." wrongly, or trailing short fragments
+  let result = [];
+  for (let m of matches) {
+    m = m.trim();
+    if (!m) continue;
+    if (result.length && /\b(a\.m|p\.m|Mr|Mrs|Dr|etc)\.?$/i.test(result[result.length-1]) && m.length < 3) {
+      result[result.length-1] += ' ' + m;
+    } else {
+      result.push(m);
+    }
+  }
+  return result;
+}
+
+const content = document.getElementById('content');
+let currentEl = null;
+
+paragraphs.forEach(paragraph => {
+  const p = document.createElement('div');
+  p.style.marginBottom = '18px';
+  const sentences = splitSentences(paragraph);
+  sentences.forEach(sentence => {
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    const btn = document.createElement('span');
+    btn.className = 'btn';
+    btn.textContent = '▶';
+    btn.title = 'Озвучить';
+
+    const textSpan = document.createElement('span');
+    textSpan.className = 'text sentence';
+    textSpan.textContent = sentence;
+
+    function speak() {
+      speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(sentence);
+      const voice = getSelectedVoice();
+      if (voice) utter.voice = voice;
+      utter.lang = voice ? voice.lang : 'en-US';
+
+      if (currentEl) currentEl.classList.remove('playing');
+      textSpan.classList.add('playing');
+      currentEl = textSpan;
+
+      utter.onend = () => textSpan.classList.remove('playing');
+      utter.onerror = () => textSpan.classList.remove('playing');
+
+      speechSynthesis.speak(utter);
+    }
+
+    btn.addEventListener('click', speak);
+    textSpan.addEventListener('click', speak);
+
+    row.appendChild(btn);
+    row.appendChild(textSpan);
+    p.appendChild(row);
+  });
+  content.appendChild(p);
+});
+
+document.getElementById('stopBtn').addEventListener('click', () => {
+  speechSynthesis.cancel();
+  if (currentEl) currentEl.classList.remove('playing');
+});
+
+// Voice selection
+const voiceSelect = document.getElementById('voiceSelect');
+function populateVoices() {
+  const voices = speechSynthesis.getVoices().filter(v => v.lang.startsWith('en'));
+  voiceSelect.innerHTML = '';
+  voices.forEach((v, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${v.name} (${v.lang})`;
+    voiceSelect.appendChild(opt);
+  });
+  voiceSelect.dataset.voices = JSON.stringify(voices.map(v => v.name));
+  window._enVoices = voices;
+}
+function getSelectedVoice() {
+  if (!window._enVoices || !window._enVoices.length) return null;
+  const idx = parseInt(voiceSelect.value || '0', 10);
+  return window._enVoices[idx] || window._enVoices[0];
+}
+speechSynthesis.onvoiceschanged = populateVoices;
+populateVoices();
+</script>
+
+</body>
+</html>
